@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reservorio y El Niño · Heun vs RK4</title>
+<style>
+:root{--bg:#f6f4ee;--card:#fff;--ink:#1d2b2a;--mut:#5b6b69;--line:#d9d6cb;--acc:#0b6e69;--c1:#111;--c2:#d9480f;--c3:#1971c2;--warn:#fff3cd;--warnink:#664d03;--bad:#fde8e8;--badink:#8a1c1c;--ok:#e3f4ea;--okink:#14532d;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#101817;--card:#18221f;--ink:#e6efed;--mut:#9fb2ae;--line:#2d3b38;--acc:#4fd1c5;--c1:#eee;--c2:#ff9e6d;--c3:#74b0ff;--warn:#3b3214;--warnink:#f5dd8a;--bad:#3d1c1c;--badink:#ffb4b4;--ok:#16301f;--okink:#a6e3b9}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#101817;--card:#18221f;--ink:#e6efed;--mut:#9fb2ae;--line:#2d3b38;--acc:#4fd1c5;--c1:#eee;--c2:#ff9e6d;--c3:#74b0ff;--warn:#3b3214;--warnink:#f5dd8a;--bad:#3d1c1c;--badink:#ffb4b4;--ok:#16301f;--okink:#a6e3b9}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Georgia,"Times New Roman",serif}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:clamp(1.6rem,4vw,2.4rem);line-height:1.15;margin:.2em 0}h2{font-size:1.3rem;margin:0 0 .5em;color:var(--acc)}h3{font-size:1rem;margin:.8em 0 .3em}
+.sans,table,label,button,input,select,.tag{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.tag{font-size:.8rem;color:var(--mut);letter-spacing:.04em;text-transform:uppercase}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin:16px 0}
+.grid{display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start}
+@media(max-width:820px){.grid{grid-template-columns:1fr}}
+.eq{font:1.1rem/1.6 "Cambria Math",Georgia,serif;background:var(--bg);border-left:4px solid var(--acc);padding:10px 14px;margin:10px 0;overflow-x:auto}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.85rem}th,td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:right;white-space:nowrap}th{text-align:right;color:var(--mut);font-weight:600;position:sticky;top:0;background:var(--card)}td:first-child,th:first-child,.l{text-align:left}
+label{display:block;font-size:.85rem;margin:10px 0 3px}label small{color:var(--mut)}
+input,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:1rem}
+input.bad{border-color:#d33;background:var(--bad)}
+button{margin-top:14px;width:100%;padding:11px;border:0;border-radius:8px;background:var(--acc);color:var(--bg);font-size:1rem;font-weight:700;cursor:pointer}
+#err{display:none;background:var(--bad);color:var(--badink);padding:10px;border-radius:8px;margin-top:10px;font:.85rem system-ui,sans-serif}
+.note{background:var(--warn);color:var(--warnink);padding:10px 12px;border-radius:8px;font-size:.9rem}
+.ok{background:var(--ok);color:var(--okink);padding:10px 12px;border-radius:8px}
+.leg span{display:inline-block;margin-right:14px;font:.8rem system-ui,sans-serif}.leg i{display:inline-block;width:22px;height:3px;vertical-align:middle;margin-right:5px}
+svg{width:100%;height:auto;display:block}svg text{fill:var(--mut);font:11px system-ui,sans-serif}
+.maxh{max-height:380px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+ul{padding-left:1.2em;margin:.3em 0}
+</style></head><body><div class="wrap">
+
+<div class="tag">Métodos Numéricos · Desafío individual · EDO de primer orden</div>
+<h1>¿Cuántos días le quedan al reservorio? El Niño y el riego en La Paz</h1>
+<div class="tag">Ignacio Josue Zarate Camargo · Métodos Numéricos · UMSA · 6 de noviembre de 2026</div>
+
+<section class="card">
+<h2>1. El problema y el modelo</h2>
+<p><b>Comunidad beneficiaria:</b> familias productoras de un sindicato agrario del departamento de La Paz que riegan sus parcelas con un reservorio comunal. Durante un evento de El Niño las lluvias llegan tarde y el caudal que alimenta el reservorio baja, mientras el riego sigue extrayendo agua. <b>Pregunta del desafío:</b> ¿en cuántos días se agotará el reservorio y desde qué día debe empezar el racionamiento? Además, ¿qué tan precisas son las aproximaciones de Heun y RK4?</p>
+<div class="eq">dy/dt = (a − d) − k·y &nbsp;&nbsp;&nbsp; con &nbsp; y(0) = y₀<br>
+Solución exacta: y(t) = c/k + (y₀ − c/k)·e<sup>−kt</sup>, &nbsp; c = a − d</div>
+<p><b>Justificación:</b> el reservorio gana agua a razón constante <i>a</i> (aporte reducido por El Niño), pierde una extracción constante <i>d</i> por riego y pierde además una fracción <i>k</i> de su volumen por filtración y evaporación (proporcional al volumen almacenado).</p>
+<div class="scroll"><table>
+<tr><th class="l">Símbolo</th><th class="l">Significado</th><th class="l">Unidad</th><th class="l">Tipo</th></tr>
+<tr><td class="l">t</td><td class="l">Tiempo</td><td class="l">días (d)</td><td class="l">Variable independiente</td></tr>
+<tr><td class="l">y(t)</td><td class="l">Volumen de agua almacenado</td><td class="l">miles de m³ (10³ m³)</td><td class="l">Variable dependiente</td></tr>
+<tr><td class="l">y₀</td><td class="l">Volumen inicial</td><td class="l">10³ m³</td><td class="l">Condición inicial</td></tr>
+<tr><td class="l">k</td><td class="l">Tasa de pérdida por filtración y evaporación</td><td class="l">1/día (d⁻¹)</td><td class="l">Parámetro</td></tr>
+<tr><td class="l">a</td><td class="l">Aporte de entrada (reducido por El Niño)</td><td class="l">10³ m³/día</td><td class="l">Parámetro</td></tr>
+<tr><td class="l">d</td><td class="l">Extracción para riego</td><td class="l">10³ m³/día</td><td class="l">Parámetro</td></tr>
+<tr><td class="l">h</td><td class="l">Tamaño de paso numérico</td><td class="l">días</td><td class="l">Parámetro numérico</td></tr>
+</table></div>
+<h3>Supuestos</h3>
+<ul><li>Aporte <i>a</i>, extracción <i>d</i> y tasa <i>k</i> constantes durante todo el intervalo.</li><li>Pérdidas proporcionales al volumen almacenado (modelo lineal).</li><li>El modelo vale mientras y ≥ 0; después de agotarse, los valores negativos carecen de sentido físico.</li><li>Intervalo de simulación por defecto: 0 ≤ t ≤ 90 días (ajustable).</li><li>Los valores por defecto son <b>hipotéticos</b>, no datos medidos. Los resultados no son una predicción comprobada.</li></ul>
+</section>
+
+<div class="grid">
+<section class="card">
+<h2>2. Entradas</h2>
+<form id="f" onsubmit="return false" novalidate>
+<label>Volumen inicial y₀ <small>(10³ m³)</small><input id="y0" value="500" inputmode="decimal"></label>
+<label>Aporte a <small>(10³ m³/día)</small><input id="a" value="3" inputmode="decimal"></label>
+<label>Extracción de riego d <small>(10³ m³/día)</small><input id="d" value="8" inputmode="decimal"></label>
+<label>Constante de pérdida k <small>(1/día)</small><input id="k" value="0.02" inputmode="decimal"></label>
+<label>Tiempo total T <small>(días)</small><input id="T" value="90" inputmode="decimal"></label>
+<label>Paso h₁ <small>(días)</small><input id="h1" value="15" inputmode="decimal"></label>
+<label>Paso h₂ <small>(días)</small><input id="h2" value="5" inputmode="decimal"></label>
+<button id="go">Simular</button>
+<div id="err"></div>
+</form>
+</section>
+
+<div>
+<section class="card" id="out" style="margin-top:0">
+<h2>3. Resultados</h2>
+<div id="sum"></div>
+<label style="max-width:260px">Paso a visualizar<select id="sel"></select></label>
+<h3>Gráfica: solución analítica, Heun y RK4</h3>
+<div class="leg"><span><i style="background:var(--c1)"></i>Analítica</span><span><i style="background:var(--c2)"></i>Heun (RK2)</span><span><i style="background:var(--c3)"></i>RK4</span></div>
+<div id="ch1"></div>
+<h3>Error absoluto (escala logarítmica)</h3>
+<div class="leg"><span><i style="background:var(--c2)"></i>Heun</span><span><i style="background:var(--c3)"></i>RK4</span></div>
+<div id="ch2"></div>
+<h3>Resumen de errores por tamaño de paso</h3>
+<div class="scroll" id="tsum"></div>
+<h3>Tabla comparativa por pasos</h3>
+<div class="maxh"><table id="tb"></table></div>
+</section>
+</div></div>
+
+<section class="card">
+<h2>4. Interpretación y conclusiones</h2>
+<div id="interp"></div>
+<h3>Limitaciones del modelo</h3>
+<ul><li>Supone aporte, riego y pérdidas constantes; en la realidad cambian con la lluvia, la temperatura y los turnos de riego.</li><li>La pérdida lineal −k·y simplifica la filtración y evaporación reales, que dependen de la superficie del espejo de agua.</li><li>Los parámetros por defecto son hipotéticos y deben calibrarse con mediciones del reservorio antes de tomar decisiones.</li><li>Después de agotarse (y = 0) el modelo ya no representa la realidad.</li></ul>
+</section>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const NUM=/^[+-]?(\d+\.?\d*|\.\d+)$/;
+let R=null;
+function read(){
+  const defs=[["y0","Volumen inicial y₀",0,false],["a","Aporte a",0,false],["d","Extracción d",0,false],["k","Constante k",0,true],["T","Tiempo total T",0,true],["h1","Paso h₁",0,true],["h2","Paso h₂",0,true]];
+  const p={},errs=[];
+  defs.forEach(([id,nm,min,strict])=>{
+    const el=$(id);el.classList.remove("bad");
+    const s=el.value.trim().replace(",",".");
+    let ok=true;
+    if(!NUM.test(s)){errs.push(nm+": ingresa solo un número (sin letras).");ok=false}
+    else{const v=Number(s);
+      if(strict?v<=min:v<min){errs.push(nm+": debe ser "+(strict?"mayor que ":"mayor o igual a ")+min+" (no se aceptan valores negativos).");ok=false}
+      else p[id]=v}
+    if(!ok)el.classList.add("bad");
+  });
+  if(!errs.length){
+    ["h1","h2"].forEach(id=>{if(p[id]>p.T){errs.push("El paso "+id.replace("h","h")+" no puede superar el tiempo total T.");$(id).classList.add("bad")}
+      else if(p.T/p[id]>5000){errs.push("Con "+id+" tendrías más de 5000 pasos; aumenta h o reduce T.");$(id).classList.add("bad")}});
+    if(p.h1===p.h2&&!errs.length){errs.push("Usa dos tamaños de paso distintos para compararlos.");$("h2").classList.add("bad")}
+  }
+  const e=$("err");
+  if(errs.length){e.style.display="block";e.innerHTML=errs.map(x=>"• "+x).join("<br>");return null}
+  e.style.display="none";return p;
+}
+const exact=(t,p)=>{const c=p.a-p.d,q=c/p.k;return q+(p.y0-q)*Math.exp(-p.k*t)};
+function run(p,h){
+  const c=p.a-p.d,f=(t,y)=>c-p.k*y;
+  const rows=[{t:0,ex:p.y0,he:p.y0,rk:p.y0}];
+  let t=0,yh=p.y0,yr=p.y0;
+  while(t<p.T-1e-12){
+    const s=Math.min(h,p.T-t);
+    // Heun (RK2)
+    const k1=f(t,yh),k2=f(t+s,yh+s*k1);yh+=s/2*(k1+k2);
+    // RK4
+    const a1=f(t,yr),a2=f(t+s/2,yr+s/2*a1),a3=f(t+s/2,yr+s/2*a2),a4=f(t+s,yr+s*a3);
+    yr+=s/6*(a1+2*a2+2*a3+a4);
+    t+=s;rows.push({t,ex:exact(t,p),he:yh,rk:yr});
+  }
+  rows.forEach(r=>{r.eh=Math.abs(r.ex-r.he);r.er=Math.abs(r.ex-r.rk);
+    r.rh=r.ex!==0?r.eh/Math.abs(r.ex)*100:null;r.rr=r.ex!==0?r.er/Math.abs(r.ex)*100:null});
+  const mx=k=>Math.max(...rows.map(r=>r[k]));
+  return{h,rows,maxH:mx("eh"),maxR:mx("er"),endH:rows.at(-1).eh,endR:rows.at(-1).er};
+}
+const f2=x=>x.toFixed(2),fe=x=>x===0?"0":x.toExponential(2),fp=x=>x===null?"—":(x<0.001?x.toExponential(2):x.toFixed(4))+" %";
+function chart(series,o){
+  const W=680,H=300,L=58,Rr=14,Tp=12,B=34;
+  let xs=[],ys=[];series.forEach(s=>s.pts.forEach(([x,y])=>{xs.push(x);ys.push(y)}));
+  const x0=0,x1=Math.max(...xs);let y0=Math.min(...ys),y1=Math.max(...ys);
+  if(o.zero){y0=Math.min(y0,0);y1=Math.max(y1,0)}
+  if(y0===y1){y1=y0+1}
+  const X=x=>L+(x-x0)/(x1-x0)*(W-L-Rr),Y=y=>H-B-(y-y0)/(y1-y0)*(H-B-Tp);
+  let g="";
+  const nt=5;
+  for(let i=0;i<=nt;i++){const v=y0+(y1-y0)*i/nt;
+    g+=`<line x1="${L}" x2="${W-Rr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${L-6}" y="${Y(v)+4}" text-anchor="end">${o.log?"10^"+Math.round(v):(Math.abs(v)<10?v.toFixed(1):Math.round(v))}</text>`;
+    const xv=x0+(x1-x0)*i/nt;g+=`<text x="${X(xv)}" y="${H-B+16}" text-anchor="middle">${Math.round(xv)}</text>`}
+  if(o.zero)g+=`<line x1="${L}" x2="${W-Rr}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--mut)" stroke-dasharray="4 3"/>`;
+  g+=`<text x="${(L+W)/2}" y="${H-4}" text-anchor="middle">${o.xl}</text><text transform="translate(12 ${H/2}) rotate(-90)" text-anchor="middle">${o.yl}</text>`;
+  series.forEach(s=>{
+    g+=`<polyline fill="none" stroke="${s.c}" stroke-width="${s.w||2}" ${s.dash?'stroke-dasharray="6 4"':""} points="${s.pts.map(([x,y])=>X(x).toFixed(1)+","+Y(y).toFixed(1)).join(" ")}"/>`;
+    if(s.dots&&s.pts.length<=120)s.pts.forEach(([x,y])=>g+=`<circle cx="${X(x)}" cy="${Y(y)}" r="3" fill="${s.c}"/>`)});
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${o.yl}">${g}</svg>`;
+}
+function show(){
+  if(!R)return;
+  const r=R.runs[$("sel").value],p=R.p;
+  const ex=[];for(let i=0;i<=200;i++){const t=p.T*i/200;ex.push([t,exact(t,p)])}
+  $("ch1").innerHTML=chart([{pts:ex,c:"var(--c1)",w:2.5},{pts:r.rows.map(q=>[q.t,q.he]),c:"var(--c2)",dots:1,dash:1},{pts:r.rows.map(q=>[q.t,q.rk]),c:"var(--c3)",dots:1,dash:1}],{xl:"t (días)",yl:"y (10³ m³)",zero:1});
+  const fl=v=>Math.log10(Math.max(v,1e-16));
+  const rr=r.rows.slice(1);
+  $("ch2").innerHTML=chart([{pts:rr.map(q=>[q.t,fl(q.eh)]),c:"var(--c2)",dots:1},{pts:rr.map(q=>[q.t,fl(q.er)]),c:"var(--c3)",dots:1}],{xl:"t (días)",yl:"error absoluto (10³ m³)",log:1});
+  $("tb").innerHTML=`<tr><th>t (d)</th><th>Analítica</th><th>Heun</th><th>RK4</th><th>|Error| Heun</th><th>|Error| RK4</th><th>Err. rel. Heun</th><th>Err. rel. RK4</th></tr>`+
+   r.rows.map(q=>`<tr><td>${+q.t.toFixed(4)}</td><td>${f2(q.ex)}</td><td>${f2(q.he)}</td><td>${f2(q.rk)}</td><td>${fe(q.eh)}</td><td>${fe(q.er)}</td><td>${fp(q.rh)}</td><td>${fp(q.rr)}</td></tr>`).join("");
+}
+function sim(){
+  const p=read();if(!p)return;
+  const runs=[run(p,p.h1),run(p,p.h2)];
+  R={p,runs};
+  const c=p.a-p.d,q=c/p.k,L20=0.2*p.y0;
+  let tdep=null,tcrit=null;
+  if(p.y0===0)tdep=0;else if(c<0){tdep=Math.log(1-p.k*p.y0/c)/p.k;
+    if(L20-q>0&&p.y0-q>0)tcrit=Math.log((p.y0-q)/(L20-q))/p.k}
+  R.tdep=tdep;R.tcrit=tcrit;
+  $("sel").innerHTML=runs.map((r,i)=>`<option value="${i}">h = ${r.h} días (${r.rows.length-1} pasos)</option>`).join("");
+  $("sum").innerHTML=`<div class="${c<0?"note":"ok"}">`+(tdep!==null?`Solución exacta: el reservorio llega a 0 en <b>t = ${tdep.toFixed(1)} días</b>${tdep>p.T?" (fuera del intervalo simulado)":""}.`:`Con a ≥ d el reservorio no se agota: tiende a un nivel de equilibrio de <b>${q.toFixed(1)}</b> ×10³ m³.`)+`</div>`;
+  $("tsum").innerHTML=`<table><tr><th class="l">Paso h (d)</th><th>Pasos</th><th>Error máx. Heun</th><th>Error máx. RK4</th><th>Error final Heun</th><th>Error final RK4</th><th>RK4 es más preciso por</th></tr>`+
+   runs.map(r=>`<tr><td class="l">${r.h}</td><td>${r.rows.length-1}</td><td>${fe(r.maxH)}</td><td>${fe(r.maxR)}</td><td>${fe(r.endH)}</td><td>${fe(r.endR)}</td><td>${r.maxR>0?"×"+(r.maxH/r.maxR).toFixed(0):"—"}</td></tr>`).join("")+`</table>`;
+  show();
+  // Interpretación
+  const best=runs.reduce((a,b)=>a.maxR<b.maxR?a:b);
+  const rkWins=runs.every(r=>r.maxR<=r.maxH);
+  const redH=runs[0].maxH/runs[1].maxH,redR=runs[0].maxR/runs[1].maxR;
+  let comm;
+  if(tdep===0)comm="El reservorio ya está vacío al inicio: no hay agua que administrar.";
+  else if(tdep!==null)comm=`Con estos parámetros hipotéticos, el reservorio se <b>agotará por completo en unos ${tdep.toFixed(0)} días</b>${tdep>p.T?" (después del intervalo simulado)":""}. `+(tcrit!==null?`El nivel baja al 20 % del volumen inicial (${L20.toFixed(0)} ×10³ m³) hacia el día ${tcrit.toFixed(0)}; ese es el momento límite para que el sindicato agrario <b>empiece a racionar el riego por turnos</b> y priorice los cultivos más sensibles.`:"El sindicato debería racionar desde el inicio.");
+  else comm=`El aporte cubre la extracción: el nivel se estabiliza cerca de ${q.toFixed(0)} ×10³ m³ y no hay riesgo de agotamiento en este escenario. Aun así conviene vigilarlo si El Niño reduce más el aporte.`;
+  $("interp").innerHTML=`<p><b>Qué significa para la comunidad.</b> ${comm}</p>
+  <p><b>Respuesta a la pregunta del desafío.</b> ${tdep!==null&&tdep>0?`El tiempo de agotamiento exacto es t* = (1/k)·ln(1 − k·y₀/c) = ${tdep.toFixed(2)} días, y los dos métodos numéricos reproducen ese comportamiento con errores pequeños: el máximo de Heun es ${fe(Math.min(...runs.map(r=>r.maxH)))} ×10³ m³ y el de RK4 ${fe(Math.min(...runs.map(r=>r.maxR)))} ×10³ m³ en su mejor paso.`:`Los dos métodos numéricos siguen la solución exacta; sus errores máximos están en la tabla de resumen.`}</p>
+  <p><b>Veredicto numérico.</b> ${rkWins?`<b>RK4 produjo el menor error</b> con ambos pasos (con h = ${best.h} d su error máximo es ${fe(best.maxR)} frente a ${fe(best.maxH)} de Heun).`:"En estos ensayos Heun igualó o superó a RK4; revisa los parámetros."} Al pasar de h = ${runs[0].h} a h = ${runs[1].h} días el error de Heun cambió ×${(1/redH).toFixed(2)} y el de RK4 ×${(1/redR).toFixed(2)}${runs[1].h<runs[0].h?" (reducir h mejora ambos, y RK4 mejora más rápido porque es de orden 4 frente al orden 2 de Heun)":""}.</p>
+  <p class="note">Recordatorio: los parámetros son hipotéticos; esto es una simulación didáctica, no una predicción comprobada.</p>`;
+}
+$("go").onclick=sim;$("sel").onchange=show;
+document.querySelectorAll("input").forEach(i=>i.addEventListener("keydown",e=>{if(e.key==="Enter")sim()}));
+sim();
+</script></body></html>
